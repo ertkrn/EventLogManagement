@@ -266,13 +266,13 @@ namespace EventLogManagement
             //string deneme = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
             //string deneme = AppDomain.CurrentDomain.BaseDirectory;
             SqlConnection sqlConn = new SqlConnection(conString);
-            SqlConnection sqlConn2 = new SqlConnection(conString);
+            //SqlConnection sqlConn2 = new SqlConnection(conString);
             string queryString = "INSERT INTO dbo.Log (FileName,TotalLineCount, CompletionStatus) VALUES (@fnm,@tlc, @cs)";
             //string queryString2 = "UPDATE dbo.Log SET LastLineNumber=@lln WHERE FileName=@fnm";
             var ext = new List<string> { "evtx" };
             //Regex containsABadCharacter = new Regex("[" + Regex.Escape(new string(Path.GetInvalidFileNameChars())) + "]");
             SqlTransaction transaction;
-            SqlTransaction transaction2;
+            //SqlTransaction transaction2;
             //foreach (string file in Directory.GetFiles(@"C:\Windows\System32\winevt\Logs"))
             //FileInfo fileInfo;
             FileInfo xmlfileInfo;
@@ -396,7 +396,7 @@ namespace EventLogManagement
                                     try
                                     {
                                         File.AppendAllTextAsync(xmlfileInfo.FullName, record.ToXml());
-                                        Thread.Sleep(1000);
+                                        //Thread.Sleep(100);
                                         //Console.CancelKeyPress += delegate {
                                         //    // call methods to clean up
                                         //    string line = "Okunan Dosya Adı : " + file + ".\n " + counter + ". Satırda kaldı.";
@@ -413,9 +413,54 @@ namespace EventLogManagement
                                 //counter++;
                             }
                         }
+                        if (linecounter > 0)
+                        {
+                            string queryString2 = "UPDATE dbo.Log SET LastLineNumber=@lln WHERE FileName=@fnm";
+                            var sqlConn2 = new SqlConnection(conString);
+                            using (SqlCommand command2 = new SqlCommand(queryString2, sqlConn2))
+                            {
+                                command2.Parameters.AddWithValue("@lln", linecounter);
+                                command2.Parameters.AddWithValue("@fnm", xml_filename);
+                                sqlConn2.Open();
+                                var transaction2 = sqlConn2.BeginTransaction("SampleTransaction");
+                                try
+                                {
+                                    // Start a local transaction.
+                                    // Must assign both transaction object and connection
+                                    // to Command object for a pending local transaction
+                                    command2.Connection = sqlConn2;
+                                    command2.Transaction = transaction2;
+                                    command2.ExecuteNonQuery();
+                                    // Attempt to commit the transaction.
+                                    transaction2.Commit();
+                                    Console.WriteLine("Both records are written to database.");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine("Commit Exception Type: {0}", ex.GetType());
+                                    Console.WriteLine("  Message: {0}", ex.Message);
+
+                                    // Attempt to roll back the transaction.
+                                    try
+                                    {
+                                        transaction2.Rollback();
+                                    }
+                                    catch (Exception ex2)
+                                    {
+                                        // This catch block will handle any errors that may have occurred
+                                        // on the server that would cause the rollback to fail, such as
+                                        // a closed connection.
+                                        Console.WriteLine("Rollback Exception Type: {0}", ex2.GetType());
+                                        Console.WriteLine("  Message: {0}", ex2.Message);
+                                    }
+                                }
+                                sqlConn2.Close();
+                            }
+                        }
                         Console.WriteLine(file);
                     }
                 }
+                linecounter = 0;
             }
             timer.Stop();
             TimeSpan timeTaken = timer.Elapsed;
